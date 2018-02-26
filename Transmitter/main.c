@@ -13,7 +13,7 @@
 
 #include "transmitter.h"
 #include "utilFunc.h"
-
+#include "servo.h"
 
 int main(void)
 {
@@ -26,11 +26,12 @@ int main(void)
     SysCtlClockSet(SYSCTL_SYSDIV_1 | SYSCTL_USE_OSC |   SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
 
     initTransmitter(period, pulseWidth);
+    initServo();
 
     while(1)
     {
         sendBinary(binaryCode, n);
+        rotateServo();
         delay_ms(2000);
-
     }
 }
