@@ -8,6 +8,7 @@
 #include "driverlib/pin_map.h"
 #include "driverlib/gpio.h"
 #include "driverlib/pwm.h"
+#include "lcd.h"
 
 void s_delay_ms(int ms) {
     SysCtlDelay( (SysCtlClockGet()/(3*1000))*ms ) ;
@@ -51,6 +52,7 @@ void rotateServo(void)
 	//Beginning at 0 degrees, increment the angle by one degree until 180 degrees is reached.
 	for (i = 0; i < 180; ++i) {
 		angle = i + 1;
+		writeAngle(angle);
 		duty = minDuty + ((dutySpan * angle) / 180);
 		PWMPulseWidthSet(PWM0_BASE, PWM_OUT_0, duty);
 		s_delay_ms(100);
@@ -58,6 +60,7 @@ void rotateServo(void)
 	//Beginning at 180 degrees, decrement the angle by one degree until 0 degrees is reached.
 	for (i = 180; i > 0; --i) {
 		angle = i;
+		writeAngle(angle);
 		duty = minDuty + ((dutySpan * angle) / 180);
 		PWMPulseWidthSet(PWM0_BASE, PWM_OUT_0, duty);
 		s_delay_ms(100);

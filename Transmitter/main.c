@@ -14,6 +14,7 @@
 #include "transmitter.h"
 #include "utilFunc.h"
 #include "servo.h"
+#include "lcd.h"
 
 int main(void)
 {
@@ -27,9 +28,12 @@ int main(void)
 
     initTransmitter(period, pulseWidth);
     initServo();
+    initI2C();
+    initLCD();
 
     while(1)
     {
+        write(0, 0, "Team Phantom!");
         sendBinary(binaryCode, n);
         rotateServo();
         delay_ms(2000);
