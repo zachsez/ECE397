@@ -4,7 +4,8 @@
  *  Created on: Feb 22, 2018
  *      Author: Zach Szczesniak
  */
-
+#ifndef TRANSMITTER_H
+#define TRANSMITTER_H
 
 #define ZEROTIME 1000   //Time active for zero bit in ms
 #define ONETIME  2000   //Time active for one bit in ms
@@ -45,3 +46,5 @@ extern void setPeriod(uint32_t period);
  * Set the pulse Width (clock ticks)
  */
 extern void setPulseWidth(uint32_t pulseWidth);
+
+#endif
