@@ -9,10 +9,14 @@
 #include "inc/hw_gpio.h"
 #include "inc/hw_types.h"
 #include "inc/hw_memmap.h"
+#include "inc/hw_ints.h"
+#include "inc/hw_timer.h"
+#include "driverlib/timer.h"
 #include "driverlib/sysctl.h"
 #include "driverlib/pin_map.h"
 #include "driverlib/gpio.h"
 #include "driverlib/pwm.h"
+#include "driverlib/timer.h"
 
 
 #include "transmitter.h"
@@ -26,6 +30,9 @@ void t_delay_ms(int ms)
     SysCtlDelay( (SysCtlClockGet()/(3*1000))*ms );
 }
 
+void enableTransmit(void)
+{
+}
 
 /*
  * Set the period (clock ticks)
@@ -48,8 +55,29 @@ void setPulseWidth(uint32_t pulseWidth)
 /*
  * Setup the square wave output on PF1
  */
-void initTransmitter(uint32_t period, uint32_t pulseWidth)
+void initTransmitter(uint32_t period, uint32_t pulseWidth, int firstPhasePassed)
 {
+	//Set PWM to use the 16 MHz clock so a 40 KHz pulsetrain can be generated.
+    SysCtlPWMClockSet(SYSCTL_PWMDIV_1);
+
+	//Disable the three timers used for the receiving phase.
+    if (firstPhasePassed) {
+        IntDisable(INT_TIMER0A);
+        TimerIntDisable(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
+        TimerDisable(TIMER0_BASE, TIMER_A);
+        HWREG(TIMER0_BASE + TIMER_O_TAV) = 0;
+
+        IntDisable(INT_TIMER1A);
+        TimerIntDisable(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
+        TimerDisable(TIMER1_BASE, TIMER_A);
+        HWREG(TIMER1_BASE + TIMER_O_TAV) = 0;
+
+        IntDisable(INT_TIMER2A);
+        TimerIntDisable(TIMER2_BASE, TIMER_TIMA_TIMEOUT);
+        TimerDisable(TIMER2_BASE, TIMER_A);
+        HWREG(TIMER2_BASE + TIMER_O_TAV) = 0;
+    }
+	
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);    //Enable Port F
     SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM1);     //Enable PWM Module 1
 
@@ -58,7 +86,6 @@ void initTransmitter(uint32_t period, uint32_t pulseWidth)
 
     //Configure PWM Options
     //PWM_GEN_2 Covers M1PWM4 and M1PWM5
-    //PWM_GEN_3 Covers M1PWM6 and M1PWM7
     PWMGenConfigure(PWM1_BASE, PWM_GEN_2, PWM_GEN_MODE_DOWN | PWM_GEN_MODE_NO_SYNC);
 
     //Set the Period (expressed in clock ticks)

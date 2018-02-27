@@ -12,30 +12,48 @@
 #include "launchpad.h"
 
 #include "transmitter.h"
+#include "receiver.h"
 #include "utilFunc.h"
 #include "servo.h"
 #include "lcd.h"
 
 int main(void)
 {
-    uint32_t period = 400; //25 us (16Mhz / 6.25)
+    uint32_t period = 400; //25 us (16Mhz / 400)
     uint32_t pulseWidth = 200;    //50% duty
     char binaryCode[3] = "101";
+    int firstPhasePassed = 0;
     int n = 3;
+    int i;
 
     //Set the clock
-    SysCtlClockSet(SYSCTL_SYSDIV_1 | SYSCTL_USE_OSC |   SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
+    SysCtlClockSet(SYSCTL_SYSDIV_1 | SYSCTL_USE_OSC | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
 
-    initTransmitter(period, pulseWidth);
-    initServo();
+    //initTransmitter(period, pulseWidth);
     initI2C();
     initLCD();
 
+    initTransmitter(period, pulseWidth, firstPhasePassed);
+    for (i = 0; i < 2; ++i) {
+        sendBinary(binaryCode, n);
+    }
+    delay_ms(10000);
+    initReceive(firstPhasePassed);
+    initServo();
+    delay_ms(20000);
+
+    firstPhasePassed = 1;
+
     while(1)
     {
-        write(0, 0, "Team Phantom!");
-        sendBinary(binaryCode, n);
-        rotateServo();
+        //write(0, 0, "Team Phantom!");
+        initTransmitter(period, pulseWidth, firstPhasePassed);
+        for (i = 0; i < 2; ++i) {
+            sendBinary(binaryCode, n);
+        }
         delay_ms(2000);
+        initReceive(firstPhasePassed);
+        initServo();
+        delay_ms(20000);
     }
 }

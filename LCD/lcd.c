@@ -132,14 +132,6 @@ void clear(void){
     sendCommand(0x01); //clear Screen
 }
 
-char *floatToString(float input) {
-	char *outputString = (char*)malloc(4 * sizeof(char));
-
-	sprintf(outputString, "%0.2f", input);
-
-	return outputString;
-}
-
 void write(int x, int y, char data[]){
     int position, i;
     int tmp;
@@ -162,7 +154,10 @@ void writeAngle(float angle)
 {
 	char *angleString = (char*)malloc(4 * sizeof(char));
 	
-	angleString = floatToString(angle);
-	write(10, 1, angleString);
+	sprintf(angleString, "%0.2f", angle);
+
+	write(5, 1, angleString);
+
+	free(angleString);
 }
 

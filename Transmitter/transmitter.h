@@ -33,7 +33,7 @@ extern int sendBinary(char binaryCode[], int n);
 /*
  * Setup the square wave output on PF1
  */
-extern void initTransmitter(uint32_t period, uint32_t pulseWidth);
+extern void initTransmitter(uint32_t period, uint32_t pulseWidth, int firstPhasePassed);
 
 
 /*

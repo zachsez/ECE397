@@ -1,17 +1,70 @@
-#include "driverlib/pin_map.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include "inc/hw_gpio.h"
 #include "inc/hw_types.h"
 #include "inc/hw_memmap.h"
+#include "inc/hw_ints.h"
+#include "inc/hw_timer.h"
 #include "driverlib/sysctl.h"
 #include "driverlib/pin_map.h"
 #include "driverlib/gpio.h"
 #include "driverlib/pwm.h"
+#include "driverlib/timer.h"
 #include "lcd.h"
+
+float previousAngle = 0.0;
+int clockWise = 0;
+int counterClockwise = 1;
 
 void s_delay_ms(int ms) {
     SysCtlDelay( (SysCtlClockGet()/(3*1000))*ms ) ;
+}
+
+void rotateServo(void)
+{
+    TimerIntClear(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
+
+    float duty;
+    float dutySpan = 375;
+    float minDuty = 187.5;
+    float angle;
+    int i;
+
+    if (previousAngle < 180.0 && counterClockwise == 1) {
+        if (previousAngle >= 179.0) {
+            counterClockwise = 0;
+            clockWise = 1;
+        }
+        angle = previousAngle + 1.0;
+        previousAngle = angle;
+        clear();
+        writeAngle(angle);
+        duty = minDuty + ((dutySpan * angle) / 180);
+        PWMPulseWidthSet(PWM0_BASE, PWM_OUT_0, duty);
+    }
+    else if (previousAngle > 0.0 && clockWise == 1) {
+        if (previousAngle == 1.0) {
+            counterClockwise = 1;
+            clockWise = 0;
+        }
+        angle = previousAngle - 1.0;
+        previousAngle = angle;
+        clear();
+        writeAngle(angle);
+        duty = minDuty + ((dutySpan * angle) / 180);
+        PWMPulseWidthSet(PWM0_BASE, PWM_OUT_0, duty);
+    }
+}
+
+void initTimer1A()
+{
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER1);
+    TimerConfigure(TIMER1_BASE, TIMER_CFG_PERIODIC);
+    TimerIntRegister(TIMER1_BASE, TIMER_A, rotateServo);
+    TimerEnable(TIMER1_BASE, TIMER_A);
+    IntEnable(INT_TIMER1A);
+    TimerIntEnable(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
 }
 
 void initServo(void)
@@ -39,31 +92,9 @@ void initServo(void)
 
     //Turn on PinB6 for PWM.
     PWMOutputState(PWM0_BASE, PWM_OUT_0_BIT, true);
-}
 
-void rotateServo(void) 
-{
-    float duty;
-    float dutySpan = 375;
-    float minDuty = 187.5;
-    float angle;
-    int i;
+    initTimer1A();
 
-	//Beginning at 0 degrees, increment the angle by one degree until 180 degrees is reached.
-	for (i = 0; i < 180; ++i) {
-		angle = i + 1;
-		writeAngle(angle);
-		duty = minDuty + ((dutySpan * angle) / 180);
-		PWMPulseWidthSet(PWM0_BASE, PWM_OUT_0, duty);
-		s_delay_ms(100);
-	}
-	//Beginning at 180 degrees, decrement the angle by one degree until 0 degrees is reached.
-	for (i = 180; i > 0; --i) {
-		angle = i;
-		writeAngle(angle);
-		duty = minDuty + ((dutySpan * angle) / 180);
-		PWMPulseWidthSet(PWM0_BASE, PWM_OUT_0, duty);
-		s_delay_ms(100);
-	}
+    TimerLoadSet(TIMER1_BASE, TIMER_A, SysCtlClockGet() / 4);
 }
 
