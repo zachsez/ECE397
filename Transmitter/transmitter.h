@@ -7,9 +7,9 @@
 #ifndef TRANSMITTER_H
 #define TRANSMITTER_H
 
-#define ZEROTIME 1000   //Time active for zero bit in ms
-#define ONETIME  2000   //Time active for one bit in ms
-#define DEADTIME 500    //Time inactive between bits in ms
+#define ZEROTIME 300   //Time active for zero bit in ms
+#define ONETIME  900  //Time active for one bit in ms
+#define DEADTIME 4000    //Time inactive between bits in ms
 
 
 /*
@@ -33,7 +33,7 @@ extern int sendBinary(char binaryCode[], int n);
 /*
  * Setup the square wave output on PF1
  */
-extern void initTransmitter(uint32_t period, uint32_t pulseWidth, int firstPhasePassed);
+extern void initTransmitter(uint32_t period, uint32_t pulseWidth);
 
 
 /*

@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
-#include "utils/uartstdio.c"
 #include <string.h>
 #include <inttypes.h>
 #include "inc/hw_i2c.h"
@@ -154,10 +153,39 @@ void writeAngle(float angle)
 {
 	char *angleString = (char*)malloc(4 * sizeof(char));
 	
-	sprintf(angleString, "%0.2f", angle);
+	sprintf(angleString, "%0.1f", angle);
 
-	write(5, 1, angleString);
+	write(0, 1, "Angle: ");
+	write(7, 1, angleString);;
+	write(12, 1, "deg");
 
 	free(angleString);
+}
+
+void writeDistance(float distanceLCD)
+{
+    char *distanceString = (char*)malloc(4 * sizeof(char));
+
+    sprintf(distanceString, "%0.1f", distanceLCD);
+
+    write(0, 0, "Distance: ");
+    write(9, 0, distanceString);
+    write(14, 0, "cm");
+
+    free(distanceString);
+}
+
+void writeLockOn() {
+    write(1, 0, "Finding target");
+}
+
+void writeWaiting() {
+    write(0, 0, "Waiting to be");
+    write(0, 1, "found");
+}
+
+void writeInitialState() {
+    write(0, 0, "SW1: Send");
+    write(0, 1, "SW2: Receive");
 }
 

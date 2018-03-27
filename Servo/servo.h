@@ -11,6 +11,6 @@ extern void initServo(void);
  * 0 to 180 degrees and then decrements by one degree
  * from 180 to 0 degrees.
  */
-extern void rotateServo(void);
+extern void rotateServo(float angle);
 
 #endif

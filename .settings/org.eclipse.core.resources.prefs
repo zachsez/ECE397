@@ -1,8 +1,8 @@
 eclipse.preferences.version=1
 encoding//Debug/LCD/subdir_rules.mk=UTF-8
 encoding//Debug/LCD/subdir_vars.mk=UTF-8
-encoding//Debug/Receive/subdir_rules.mk=UTF-8
-encoding//Debug/Receive/subdir_vars.mk=UTF-8
+encoding//Debug/Receiver/subdir_rules.mk=UTF-8
+encoding//Debug/Receiver/subdir_vars.mk=UTF-8
 encoding//Debug/Servo/subdir_rules.mk=UTF-8
 encoding//Debug/Servo/subdir_vars.mk=UTF-8
 encoding//Debug/Transmitter/subdir_rules.mk=UTF-8

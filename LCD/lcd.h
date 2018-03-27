@@ -22,6 +22,31 @@ extern void write(int x, int y, char data[]);
 extern void writeAngle(float angle);
 
 /*
+ * Write a distance to the LCD as a string.
+ */
+extern void writeDistance(float distanceLCD);
+
+/*
+ * Write to the LCD that the node is looking for
+ * its target (lock on phase).
+ */
+extern void writeLockOn();
+
+/*
+ * Write to the LCD that the node is waiting to
+ * be locked onto (receive phase).
+ */
+extern void writeWaiting();
+
+/*
+ * Write to the LCD which push button corresponds
+ * to lock on phase or receive phase.
+ * SW1 -> lock on phase.
+ * SW2 -> receive phase.
+ */
+extern void writeInitialState();
+
+/*
  * Convert a floating point number to a string.
  */
 extern char *floatToString(float input);

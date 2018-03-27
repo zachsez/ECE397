@@ -2,7 +2,7 @@
  * transmitter.c
  *
  *  Created on: Feb 22, 2018
- *      Author: Zach Szczesniak
+ *      Author: Zach Szczesniak, Michael Dritlein
  */
 #include <stdint.h>
 #include <stdbool.h>
@@ -30,8 +30,9 @@ void t_delay_ms(int ms)
     SysCtlDelay( (SysCtlClockGet()/(3*1000))*ms );
 }
 
-void enableTransmit(void)
+void t_delay_us(int us)
 {
+    SysCtlDelay( (SysCtlClockGet()/(3*1000000))*us );
 }
 
 /*
@@ -55,28 +56,10 @@ void setPulseWidth(uint32_t pulseWidth)
 /*
  * Setup the square wave output on PF1
  */
-void initTransmitter(uint32_t period, uint32_t pulseWidth, int firstPhasePassed)
+void initTransmitter(uint32_t period, uint32_t pulseWidth)
 {
 	//Set PWM to use the 16 MHz clock so a 40 KHz pulsetrain can be generated.
     SysCtlPWMClockSet(SYSCTL_PWMDIV_1);
-
-	//Disable the three timers used for the receiving phase.
-    if (firstPhasePassed) {
-        IntDisable(INT_TIMER0A);
-        TimerIntDisable(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
-        TimerDisable(TIMER0_BASE, TIMER_A);
-        HWREG(TIMER0_BASE + TIMER_O_TAV) = 0;
-
-        IntDisable(INT_TIMER1A);
-        TimerIntDisable(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
-        TimerDisable(TIMER1_BASE, TIMER_A);
-        HWREG(TIMER1_BASE + TIMER_O_TAV) = 0;
-
-        IntDisable(INT_TIMER2A);
-        TimerIntDisable(TIMER2_BASE, TIMER_TIMA_TIMEOUT);
-        TimerDisable(TIMER2_BASE, TIMER_A);
-        HWREG(TIMER2_BASE + TIMER_O_TAV) = 0;
-    }
 	
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);    //Enable Port F
     SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM1);     //Enable PWM Module 1
@@ -119,7 +102,8 @@ int sendBit(char bit)
     PWMOutputState(PWM1_BASE, PWM_OUT_5_BIT, false);
 
     //Delay for dead period
-    t_delay_ms(DEADTIME);
+    //t_delay_ms(DEADTIME);
+    t_delay_us(DEADTIME);
 
     //Set state true
     PWMOutputState(PWM1_BASE, PWM_OUT_5_BIT, true);
@@ -127,11 +111,11 @@ int sendBit(char bit)
     //Delay for active time depending on bit value
     if(bit == '0')
     {
-        t_delay_ms(ZEROTIME);
+        t_delay_us(ZEROTIME);
     }
     else
     {
-        t_delay_ms(ONETIME);
+        t_delay_us(ONETIME);
     }
 
     //Set state false
