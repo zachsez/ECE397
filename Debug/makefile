@@ -10,7 +10,6 @@ GEN_CMDS__FLAG :=
 ORDERED_OBJS += \
 "./tm4c123gh6pm_startup_ccs.obj" \
 "./LCD/lcd.obj" \
-"./Receiver/receiver.obj" \
 "./Servo/servo.obj" \
 "./Servo/utilFunc.obj" \
 "./Transmitter/main.obj" \
@@ -30,12 +29,10 @@ RMDIR := rm -rf
 -include sources.mk
 -include subdir_vars.mk
 -include LCD/subdir_vars.mk
--include Receiver/subdir_vars.mk
 -include Servo/subdir_vars.mk
 -include Transmitter/subdir_vars.mk
 -include subdir_rules.mk
 -include LCD/subdir_rules.mk
--include Receiver/subdir_rules.mk
 -include Servo/subdir_rules.mk
 -include Transmitter/subdir_rules.mk
 -include objects.mk
@@ -168,8 +165,8 @@ ECE397.hex: $(EXE_OUTPUTS)
 # Other Targets
 clean:
 	-$(RM) $(BIN_OUTPUTS__QUOTED)$(EXE_OUTPUTS__QUOTED)
-	-$(RM) "tm4c123gh6pm_startup_ccs.obj" "LCD/lcd.obj" "Receiver/receiver.obj" "Servo/servo.obj" "Servo/utilFunc.obj" "Transmitter/main.obj" "Transmitter/transmitter.obj" 
-	-$(RM) "tm4c123gh6pm_startup_ccs.d" "LCD/lcd.d" "Receiver/receiver.d" "Servo/servo.d" "Servo/utilFunc.d" "Transmitter/main.d" "Transmitter/transmitter.d" 
+	-$(RM) "tm4c123gh6pm_startup_ccs.obj" "LCD/lcd.obj" "Servo/servo.obj" "Servo/utilFunc.obj" "Transmitter/main.obj" "Transmitter/transmitter.obj" 
+	-$(RM) "tm4c123gh6pm_startup_ccs.d" "LCD/lcd.d" "Servo/servo.d" "Servo/utilFunc.d" "Transmitter/main.d" "Transmitter/transmitter.d" 
 	-@echo 'Finished clean'
 	-@echo ' '
 

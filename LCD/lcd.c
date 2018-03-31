@@ -149,11 +149,11 @@ void write(int x, int y, char data[]){
     }
 }
 
-void writeAngle(float angle) 
+void writeAngle(int angle)
 {
 	char *angleString = (char*)malloc(4 * sizeof(char));
 	
-	sprintf(angleString, "%0.1f", angle);
+	sprintf(angleString, "%0.1d", angle);
 
 	write(0, 1, "Angle: ");
 	write(7, 1, angleString);;
@@ -162,11 +162,11 @@ void writeAngle(float angle)
 	free(angleString);
 }
 
-void writeDistance(float distanceLCD)
+void writeDistance(int distanceLCD)
 {
     char *distanceString = (char*)malloc(4 * sizeof(char));
 
-    sprintf(distanceString, "%0.1f", distanceLCD);
+    sprintf(distanceString, "%0.1d", distanceLCD);
 
     write(0, 0, "Distance: ");
     write(9, 0, distanceString);
@@ -187,5 +187,22 @@ void writeWaiting() {
 void writeInitialState() {
     write(0, 0, "SW1: Send");
     write(0, 1, "SW2: Receive");
+}
+
+void writeStartStatement() {
+    write(0, 0, "Choose starting");
+    write(0, 1, "angle");
+}
+
+void writeChooseAngle(int startingAngle) {
+    char *angleString = (char*)malloc(4 * sizeof(char));
+
+    sprintf(angleString, "%0.1d", startingAngle);
+
+    write(0, 0, "SW1: Angle = ");
+    write(0, 1, "SW2: Begin ");
+    write(13, 0, angleString);
+
+    free(angleString);
 }
 

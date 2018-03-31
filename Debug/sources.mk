@@ -113,7 +113,6 @@ PDE_DEPS__QUOTED :=
 SUBDIRS := \
 . \
 LCD \
-Receiver \
 Servo \
 Transmitter \
 

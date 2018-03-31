@@ -56,4 +56,8 @@ extern char *floatToString(float input);
  */
 extern void clear(void);
 
+extern void writeStartStatement();
+
+extern void writeChooseAngle();
+
 #endif
