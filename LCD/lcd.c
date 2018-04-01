@@ -162,11 +162,11 @@ void writeAngle(int angle)
 	free(angleString);
 }
 
-void writeDistance(int distanceLCD)
+void writeDistance(float distanceLCD)
 {
     char *distanceString = (char*)malloc(4 * sizeof(char));
 
-    sprintf(distanceString, "%0.1d", distanceLCD);
+    sprintf(distanceString, "%0.1f", distanceLCD);
 
     write(0, 0, "Distance: ");
     write(9, 0, distanceString);
@@ -204,5 +204,10 @@ void writeChooseAngle(int startingAngle) {
     write(13, 0, angleString);
 
     free(angleString);
+}
+
+void writeFirstNode() {
+    write(0, 0, "Node used for");
+    write(0, 1, "other to lock on");
 }
 

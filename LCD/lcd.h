@@ -60,4 +60,6 @@ extern void writeStartStatement();
 
 extern void writeChooseAngle();
 
+extern void writeFirstNode();
+
 #endif
