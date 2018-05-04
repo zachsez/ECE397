@@ -149,15 +149,15 @@ void write(int x, int y, char data[]){
     }
 }
 
-void writeAngle(int angle)
+void writeAngle(float angle)
 {
 	char *angleString = (char*)malloc(4 * sizeof(char));
 	
-	sprintf(angleString, "%0.1d", angle);
+	sprintf(angleString, "%0.1f", angle);
 
 	write(0, 1, "Angle: ");
 	write(7, 1, angleString);;
-	write(12, 1, "deg");
+	write(13, 1, "deg");
 
 	free(angleString);
 }
@@ -175,13 +175,14 @@ void writeDistance(float distanceLCD)
     free(distanceString);
 }
 
-void writeLockOn() {
-    write(1, 0, "Finding target");
+void writeTransmitFinished() {
+    write(0, 0, "Transmit sweep");
+    write(0, 1, "finished");
 }
 
 void writeWaiting() {
-    write(0, 0, "Waiting to be");
-    write(0, 1, "found");
+    write(0, 0, "Finding lock on");
+    write(0, 1, "angle");
 }
 
 void writeInitialState() {

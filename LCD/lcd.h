@@ -30,7 +30,7 @@ extern void writeDistance(float distanceLCD);
  * Write to the LCD that the node is looking for
  * its target (lock on phase).
  */
-extern void writeLockOn();
+extern void writeTransmitFinished();
 
 /*
  * Write to the LCD that the node is waiting to

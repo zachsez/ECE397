@@ -8,11 +8,11 @@ GEN_OPTS__FLAG :=
 GEN_CMDS__FLAG := 
 
 ORDERED_OBJS += \
+"./main.obj" \
 "./tm4c123gh6pm_startup_ccs.obj" \
 "./LCD/lcd.obj" \
 "./Servo/servo.obj" \
 "./Servo/utilFunc.obj" \
-"./Transmitter/main.obj" \
 "./Transmitter/transmitter.obj" \
 "../tm4c123gh6pm.cmd" \
 $(GEN_CMDS__FLAG) \
@@ -165,8 +165,8 @@ ECE397.hex: $(EXE_OUTPUTS)
 # Other Targets
 clean:
 	-$(RM) $(BIN_OUTPUTS__QUOTED)$(EXE_OUTPUTS__QUOTED)
-	-$(RM) "tm4c123gh6pm_startup_ccs.obj" "LCD/lcd.obj" "Servo/servo.obj" "Servo/utilFunc.obj" "Transmitter/main.obj" "Transmitter/transmitter.obj" 
-	-$(RM) "tm4c123gh6pm_startup_ccs.d" "LCD/lcd.d" "Servo/servo.d" "Servo/utilFunc.d" "Transmitter/main.d" "Transmitter/transmitter.d" 
+	-$(RM) "main.obj" "tm4c123gh6pm_startup_ccs.obj" "LCD/lcd.obj" "Servo/servo.obj" "Servo/utilFunc.obj" "Transmitter/transmitter.obj" 
+	-$(RM) "main.d" "tm4c123gh6pm_startup_ccs.d" "LCD/lcd.d" "Servo/servo.d" "Servo/utilFunc.d" "Transmitter/transmitter.d" 
 	-@echo 'Finished clean'
 	-@echo ' '
 

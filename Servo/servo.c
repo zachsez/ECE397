@@ -24,22 +24,22 @@ void s_delay_ms(int ms) {
     SysCtlDelay( (SysCtlClockGet()/(3*1000))*ms ) ;
 }
 
-void rotateServo(float angle)
+void rotateServo(uint32_t angle)
 {
-    float duty;
-    float dutySpan = 375;
-    float minDuty = 187.5;
+    uint32_t duty;
+    uint32_t dutySpan = 24000; //375;
+    uint32_t minDuty = 12000; //187.5;
 
-    duty = minDuty + ((dutySpan * angle) / 180.0);
+    duty = minDuty + ((dutySpan / 180) * angle);
     PWMPulseWidthSet(PWM0_BASE, PWM_OUT_0, duty);
 }
 
 void initServo(void)
 {
-    uint32_t pwmPeriod = 5000; //Period = (16 MHz / 64 * 5000) = 20 ms.
+    uint32_t pwmPeriod = 320000; //Period = (16 MHz / 64 * 5000) = 1 / 20 ms.
 
     //Set the PWM clock to be the system clock divided by 64.
-    SysCtlPWMClockSet(SYSCTL_PWMDIV_64);
+    SysCtlPWMClockSet(SYSCTL_PWMDIV_1);
 
     //Enable peripherals.
     SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM0);

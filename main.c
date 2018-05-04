@@ -53,15 +53,31 @@ volatile int time = 0;
 //Variable used to check if a logic low is noise or an intended delay.
 volatile int timeOut = 0; 
 int lockOnPhase = 0; //Boolean to tell the node if it is in its lock on phase or not.
-int angleList[100]; //Array used to store the angles during a servo sweep.
+uint32_t angleList[150]; //Array used to store the angles during a servo sweep.
 //Maintain a list of the distances during a reading of multiple distances.
-int distanceList[20]; 
+int distanceList[300];
 volatile int nodeEnabled = 0; //Boolean used to enable the node for normal operation.
-int startingAngle = 0; //The angle that the servo starts at before tracking.
+uint32_t startingAngle = 0; //The angle that the servo starts at before tracking.
 //Boolean used to know whether to increment the angle being chosen by the user
 //(before tracking) or decrement the angle.
 volatile int incrementAngle = 1;
 volatile int reportDistance = 0;
+volatile int sendDistance = 0;
+volatile uint32_t currentAngle = 0;
+volatile int updateCW = 0;
+volatile int updateCCW = 1;
+volatile int receiveAngleListCCW[150];
+volatile int receiveAngleListCW[150];
+volatile int receiveIndex = 0;
+volatile int receiveMinIndexCCW;
+volatile int receiveMinIndexCW;
+volatile int receiveDistanceList[150];
+volatile int minDistanceCCW = 100000;
+volatile int minDistanceCW = 100000;
+
+static enum{
+    Send_Transmit, Send_End, Lock_On_Wait, Lock_On_End, Idle
+} currentState = Idle;
 
 //Milliseconds delay.
 void _delay_ms(int milliSecond) {
@@ -72,6 +88,101 @@ void _delay_ms(int milliSecond) {
 void _delay_us(int us)
 {
     SysCtlDelay( (SysCtlClockGet()/(3*1000000))*us );
+}
+
+int absValue(int arg1, int arg2) {
+    int value = arg1 - arg2;
+    if (value < 0)
+        value *= -1;
+
+    return value;
+}
+
+int findMax(int arg1, int arg2) {
+    int max;
+
+    if (arg1 > arg2)
+        max = arg1;
+    else
+        max = arg2;
+
+    return max;
+}
+
+void updateAngle() {
+    uint32_t finalAngle;
+    int i;
+    int averagedDistance = 1000000;
+
+    TimerIntClear(TIMER5_BASE, TIMER_TIMA_TIMEOUT);
+
+    if (updateCCW == 1) {
+        receiveAngleListCCW[receiveIndex] = currentAngle;
+        currentAngle += 5;
+        ++receiveIndex;
+        if (currentAngle == 180) {
+            TimerIntDisable(TIMER5_BASE, TIMER_TIMA_TIMEOUT);
+            _delay_ms(500);
+            TimerIntEnable(TIMER5_BASE, TIMER_TIMA_TIMEOUT);
+            updateCCW = 0;
+            updateCW = 1;
+            for (i = 3; i < 36; ++i) {
+                averagedDistance = (receiveDistanceList[i - 3] +receiveDistanceList[i - 2] +
+                        receiveDistanceList[i - 1] + receiveDistanceList[i]) / 4;
+                if (averagedDistance < minDistanceCCW) {
+                    minDistanceCCW = averagedDistance;
+                    receiveMinIndexCCW = i;
+                }
+            }
+        }
+    }
+    else if (updateCW == 1) {
+        receiveAngleListCW[receiveIndex] = currentAngle;
+        currentAngle -= 5;
+        ++receiveIndex;
+        if (currentAngle == 0) {
+            updateCCW = 1;
+            updateCW = 0;
+            TimerIntDisable(TIMER5_BASE, TIMER_TIMA_TIMEOUT);
+            for (i = 39; i < 72; ++i) {
+                averagedDistance = (receiveDistanceList[i - 3] + receiveDistanceList[i - 2] +
+                        receiveDistanceList[i - 1] + receiveDistanceList[i]) / 4;
+                if (averagedDistance < minDistanceCW) {
+                    minDistanceCW = averagedDistance;
+                    receiveMinIndexCW = i;
+                }
+            }
+            if (receiveAngleListCCW[receiveMinIndexCCW] == 0)
+                finalAngle = receiveAngleListCW[receiveMinIndexCW];
+            else if (receiveAngleListCW[receiveMinIndexCW] == 0)
+                finalAngle = receiveAngleListCCW[receiveMinIndexCCW];
+            else
+                finalAngle = (receiveAngleListCCW[receiveMinIndexCCW]
+                         + receiveAngleListCW[receiveMinIndexCW]) / 2;
+            rotateServo(finalAngle);
+            GPIOIntDisable(GPIO_PORTD_BASE, GPIO_PIN_2);
+            _delay_ms(200);
+            GPIOIntEnable(GPIO_PORTD_BASE, GPIO_PIN_2);
+            uprintf("finalAngle: %u\n", finalAngle);
+            uprintf("receiveAngleListCCW: %d\n receiveAngleListCW: %d\n", receiveAngleListCCW[receiveMinIndexCCW],
+                         receiveAngleListCW[receiveMinIndexCW]);
+            clear();
+            writeAngle(finalAngle);
+            PWMGenDisable(PWM0_BASE, PWM_GEN_0);
+        }
+    }
+
+    uprintf("currentAngle: %u\n", currentAngle);
+}
+
+void initTimer5A() {
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER5);
+    TimerConfigure(TIMER5_BASE, TIMER_CFG_PERIODIC);
+    TimerIntRegister(TIMER5_BASE, TIMER_A, updateAngle);
+    TimerLoadSet(TIMER5_BASE, TIMER_A, 3840000);
+    IntEnable(INT_TIMER5A);
+    TimerIntEnable(TIMER5_BASE, TIMER_TIMA_TIMEOUT);
+    TimerEnable(TIMER5_BASE, TIMER_A);
 }
 
 //Initialize UART to be used for uprintf().
@@ -123,13 +234,26 @@ void endPhaseTimer() {
 void checkPhaseTimer(int *phaseTime) {
     *phaseTime = TimerValueGet(TIMER4_BASE, TIMER_A) / 16000;
 	//If the time is greater than this value, switch to the lock on phase.
-    if (*phaseTime > 10000) {
+    if (*phaseTime > 20000 && currentState == Lock_On_Wait) {
         lockOnPhase = 1;
+        currentState = Lock_On_End;
+        reportDistance = 1;
+        sendDistance = 1;
+        time = 0;
         endPhaseTimer();
-        clear();
-        writeLockOn();
         GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_2, 0);
-        GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_1, GPIO_PIN_1);
+        GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_3, GPIO_PIN_3);
+    }
+    else if (*phaseTime > 20000 && currentState == Send_Transmit) {
+        lockOnPhase = 0;
+        currentState = Send_End;
+        endPhaseTimer();
+        time = 0;
+        clear();
+        writeTransmitFinished();
+        GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_1, 0);
+        GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_3, GPIO_PIN_3);
+        PWMGenDisable(PWM0_BASE, PWM_GEN_0); //Disable the servo PWM module.
     }
 }
 
@@ -142,10 +266,10 @@ void checkPushButtons() {
     GPIOIntClear(GPIO_PORTF_BASE, GPIO_PIN_4);
 
 	//Check the GPIO input of the push buttons (active low).
-    readButton = ~GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_0);
+    readButton = ~GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_0 | GPIO_PIN_4);
 
 	//SW2 has been pushed, this enables a receive phase.
-    if ((readButton & GPIO_PIN_0) == 1 && nodeEnabled) {
+    if ((readButton & GPIO_PIN_0) && nodeEnabled) {
         clear();
         writeWaiting();
 		//Start the timer used to switch to a lock on phase after a predetermined time.
@@ -153,21 +277,24 @@ void checkPushButtons() {
         startTransmit = 0;
         endReceive = 0;
         lockOnPhase = 0;
-        reportDistance = 1;
+        currentState = Lock_On_Wait;
 		//Turn on the LED corresponding to the receive phase.
         GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_1, 0);
         GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_2, GPIO_PIN_2);
         SysCtlPWMClockSet(SYSCTL_PWMDIV_1);
         GPIOIntEnable(GPIO_PORTF_BASE, GPIO_PIN_4);
         GPIOIntEnable(GPIO_PORTF_BASE, GPIO_PIN_0);
+        initTimer5A();
     }
 	//SW1 has been pushed, this enables a lock on phase.
-    else if (nodeEnabled){
+    else if ((readButton & GPIO_PIN_4) && nodeEnabled){
         clear();
         writeFirstNode();
+        startPhaseTimer();
         startTransmit = 1;
         endReceive = 1;
         lockOnPhase = 1;
+        currentState = Send_Transmit;
 		//Turn on the LED corresponding to the lock on phase.
         GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_2, 0);
         GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_1, GPIO_PIN_1);
@@ -283,8 +410,12 @@ void ultrasoundReceive()
         if (strcmp(verifiedCode, receiveString) == 0) {
             endReceive = 1;
         }
-        else if ((strcmp(verifiedCode, lockOnString) == 0)) {
+        else if ((strcmp(verifiedCode, lockOnString) == 0) && reportDistance) {
             endReceive = 1;
+        }
+        else {
+            verifiedCode[0] = '0';
+            verifiedCode[1] = '0';
         }
         IntDisable(INT_TIMER2A);
         TimerIntDisable(TIMER2_BASE, TIMER_TIMA_TIMEOUT);
@@ -357,11 +488,6 @@ void initTimer4A() {
     TimerConfigure(TIMER4_BASE, TIMER_CFG_ONE_SHOT_UP);
 }
 
-void initTimer5A() {
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER5);
-    TimerConfigure(TIMER5_BASE, TIMER_CFG_ONE_SHOT_UP);
-}
-
 void initGPIO() {
 	//Set PC5 to read the logic level for binary codes.
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOD);
@@ -370,7 +496,7 @@ void initGPIO() {
 	//Set PE1 and PE2 for output to LEDs signifying a lock on (transmit)
 	//phase or a receiving phase. PE1 -> lock on phase, PE2 -> receive phase.
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
-    GPIOPinTypeGPIOOutput(GPIO_PORTE_BASE, GPIO_PIN_1 | GPIO_PIN_2);
+    GPIOPinTypeGPIOOutput(GPIO_PORTE_BASE, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3);
 }
 
 //Begin the timer for the flight timer of the ultrasound (including transmit
@@ -383,10 +509,13 @@ void startFlightTimer() {
 
 //End the flight timer and use the value to calculate the distance to the 
 //other node.
-int endFlightTimer(int foundAngle) {
+int endFlightTimer(int foundAngle, int *numReceived) {
     int distance = 0;
     int clockCycles = 0;
     int flightTime = 0;
+    int finalDistance = 0;
+    int totalAverage = 0;
+    int i;
 
     IntDisable(INT_TIMER1A);
     TimerIntDisable(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
@@ -396,8 +525,8 @@ int endFlightTimer(int foundAngle) {
 	//If the angle was found, calculate the flight time of the ultrasound
 	//waves. Subtract the processing time for the transmit and receive
 	//from this flight time.
-    if (foundAngle) {
-        flightTime = ((clockCycles / 16) / 2) - 18150;
+    if (foundAngle || reportDistance) {
+        flightTime = ((clockCycles / 16) / 2) - 58400;
     }
 	//Otherwise, calculate the total time for a binary verification to allow
 	//for easier angle lock on (the correct angle to the other node should 
@@ -408,6 +537,28 @@ int endFlightTimer(int foundAngle) {
     HWREG(TIMER1_BASE + TIMER_O_TAV) = 0;
     uprintf("flight time: %d sec, distance: %d m\n", flightTime, distance);
     uprintf("clock cycles: %d\n", clockCycles);
+
+    if (distance != 0)
+        receiveDistanceList[receiveIndex] = distance;
+
+    if (reportDistance && (distance > 0 && distance < 100)) {
+        distanceList[*numReceived] = distance;
+        ++(*numReceived);
+        time = 0;
+    }
+
+    if (*numReceived >= 1) {
+        for (i = 0; i < *numReceived; ++i) {
+            if (i > 1) {
+                if (absValue(distanceList[i], distanceList[i - 1]) >= 10) {
+                    distanceList[i] = distanceList[i - 2];
+                }
+            }
+            totalAverage += distanceList[i];
+        }
+        finalDistance = totalAverage / *numReceived;
+        writeDistance(finalDistance);
+    }
 
     return distance;
 }
@@ -445,39 +596,34 @@ void clearWatchDog()
 //locked onto.
 void angleLock(int index, int *foundAngle, int distance, int *previousDistanceMin,
                int *clockWise, int *counterClockWise, int *minIndex,
-               int *angleUpperLimit, int *angleLowerLimit, int *previousAngle,
+               uint32_t *angleUpperLimit, uint32_t *angleLowerLimit, uint32_t *previousAngle,
                int *previousDistance, int *distanceBefore, int *findNextDistance)
 {
-    float angle;
+    uint32_t angle;
+    int restingAngle = 90;
 
 	//Rotate the servo clockwise and counter clockwise until the angle is locked onto.
     if (!*foundAngle) { 
+        if (startingAngle == 0)
+            startingAngle = 1000;
 		//Rotate counter clockwise.
         if (*counterClockWise == 1) {
             angle = *previousAngle; //Set the angle to the previous angle.
             angleList[index] = angle; //Place the current angle into an array.
 
-            if (*findNextDistance == 1) {
-                if (distance != *previousDistance) {
-                    *previousDistanceMin = (*distanceBefore + *previousDistance + distance) / 3;
-                    *findNextDistance = 0;
-                }
-            }
-
 			//If the distance is less than the previous distance, keep track of the index
 			//corresponding to this new minimum distance.
             if (distance > 0 && distance < *previousDistanceMin) {
                 *minIndex = index;
-                *distanceBefore = *previousDistance;
-                *findNextDistance = 1;
+                *previousDistanceMin = distance;
             }
 
-            _delay_ms(20); //Delay needed for the servo to physically rotate.
-
-            angle += 5.0; //Increment the angle by 5 degrees.
+            angle += 5; //Increment the angle by 5 degrees.
 
 			//Rotate the servo to the new angle.
             rotateServo(angle);
+
+            _delay_ms(80); //Delay needed for the servo to physically rotate.
 
 			//If the upper angle limit is reached, rotate the opposite way.
             if (angle >= *angleUpperLimit) {
@@ -486,70 +632,46 @@ void angleLock(int index, int *foundAngle, int distance, int *previousDistanceMi
             }
 
             if (angle == startingAngle) {
-                startingAngle = -1; //So this condition can't be met again.
+                startingAngle = 1000; //So this condition can't be met again.
                 *clockWise = 1;
                 *counterClockWise = 0;
                 *angleUpperLimit = angleList[*minIndex] + (*angleUpperLimit - *angleLowerLimit) / 6;
                 *angleLowerLimit = angleList[*minIndex] - (*angleUpperLimit - *angleLowerLimit) / 6;
                 //If the angle limits are pass the boundaries, round them to their respective
                 //boundary values.
-                if (*angleLowerLimit < 0.0) {
-                    *angleLowerLimit = 0;
-                }
-                if (*angleUpperLimit > 180.0) {
-                    *angleUpperLimit = 180.0;
+                if (*angleUpperLimit > 180) {
+                    *angleUpperLimit = 180;
                 }
                 angle = angleList[*minIndex];
+                *previousAngle = angle;
             }
         }
         else if (*clockWise == 1) {
             angle = *previousAngle; //Set the angle to the previous angle.
             angleList[index] = angle; //Place the current angle into an array.
 
-            if (*findNextDistance == 1) {
-                if (distance != *previousDistance) {
-                    *previousDistanceMin = (*distanceBefore + *previousDistance + distance) / 3;
-                    *findNextDistance = 0;
-                }
-            }
-
             //If the distance is less than the previous distance, keep track of the index
             //corresponding to this new minimum distance.
             if (distance > 0 && distance < *previousDistanceMin) {
                 *minIndex = index;
-                *distanceBefore = *previousDistance;
-                *findNextDistance = 1;
+                *previousDistanceMin = distance;
             }
 
-            _delay_ms(20); //Delay needed for the servo to physically rotate.
-
-            angle -= 5.0; //Decrement the angle by 5 degrees.
+            angle -= 5; //Decrement the angle by 5 degrees.
 
 			//Rotate the servo to the new angle.
             rotateServo(angle); 
 
+            _delay_ms(80); //Delay needed for the servo to physically rotate.
+
 			//If the lower angle limit is reached, rotate the opposite way. Also divide
 			//the angle limits by three (centered around the new angle).
-            if (angle <= *angleLowerLimit && startingAngle <= 0) {
-                *clockWise = 0;
-                *counterClockWise = 1;
-                *angleUpperLimit = angleList[*minIndex] + (*angleUpperLimit - *angleLowerLimit) / 6;
-                *angleLowerLimit = angleList[*minIndex] - (*angleUpperLimit - *angleLowerLimit) / 6;
+            if (angle <= *angleLowerLimit && startingAngle > 500) {
+                rotateServo(restingAngle);
 				//If the range is less than 10, the angle to lock onto was found. Rotate this angle
 				//and update the foundAngle boolean.
-                if ((*angleUpperLimit - *angleLowerLimit) <= 10.0) {
-                    rotateServo(angleList[*minIndex]);
-                    _delay_ms(50);
-                    *foundAngle = 1;
-                }
-				//If the angle limits are pass the boundaries, round them to their respective
-				//boundary values.
-                if (*angleLowerLimit < 0.0) {
-                    *angleLowerLimit = 0;
-                }
-                if (*angleUpperLimit > 180.0) {
-                    *angleUpperLimit = 180.0;
-                }
+                _delay_ms(100);
+                *foundAngle = 1;
                 angle = angleList[*minIndex];
             }
             else if (angle <= *angleLowerLimit) {
@@ -560,6 +682,7 @@ void angleLock(int index, int *foundAngle, int distance, int *previousDistanceMi
         *previousAngle = angle; //Keep the current angle for the next function call.
         if (distance != 0) {
             *previousDistance = distance;
+            distanceList[index] = distance;
         }
     }
 }
@@ -569,11 +692,6 @@ void angleLock(int index, int *foundAngle, int distance, int *previousDistanceMi
 void finishReceive(foundAngle) {
     GPIOIntDisable(GPIO_PORTD_BASE, GPIO_PIN_2);
     startTransmit = 1;
-
-    //If the angle has not been locked onto yet, set the PWM rate for
-	//binary transmission.
-    if (!foundAngle && lockOnPhase)
-        SysCtlPWMClockSet(SYSCTL_PWMDIV_1);
 }
 
 //Phase for receiving binary digits.
@@ -587,21 +705,23 @@ void receivePhase(int foundAngle, int numTransmits, int *findDistance) {
 
     //If the watch dog timer gives a timer that reflects a missed receive,
 	//send another binary code.
-    if (watchDogTime > 50 && lockOnPhase) {
+    if (watchDogTime > 140 && lockOnPhase) {
         GPIOIntDisable(GPIO_PORTD_BASE, GPIO_PIN_2);
-        SysCtlPWMClockSet(SYSCTL_PWMDIV_1);
         startTransmit = 1;
         endReceive = 1;
         clearWatchDog();
     }
+    else if (watchDogTime > 250 && !lockOnPhase) {
+        time = 0;
+        timeOut = 0;
+    }
 	//If the angle has been locked onto, start reading multpile
 	//distances.
     else if (foundAngle && numTransmits == 0) {
-        GPIOIntDisable(GPIO_PORTD_BASE, GPIO_PIN_2);
-        SysCtlPWMClockSet(SYSCTL_PWMDIV_1);
-        startTransmit = 1;
-        endReceive = 1;
-        *findDistance = 1;
+        //GPIOIntDisable(GPIO_PORTD_BASE, GPIO_PIN_2);
+        //startTransmit = 1;
+        //endReceive = 1;
+        //*findDistance = 1;
         PWMGenDisable(PWM0_BASE, PWM_GEN_0); //Disable the servo PWM module.
         time = 0;
     }
@@ -609,7 +729,7 @@ void receivePhase(int foundAngle, int numTransmits, int *findDistance) {
 
 //Transmit the lock on phase binary code to the other node.
 void transmitPhase(char binaryCode[], int n, int foundAngle) {
-    _delay_ms(20); //Delay needed to allow for a proper receive.
+    _delay_ms(100); //Delay needed to allow for a proper receive.
 
     sendBinary(binaryCode, n); //Send the binary code.
 
@@ -622,49 +742,29 @@ void transmitPhase(char binaryCode[], int n, int foundAngle) {
     startWatchDog(); 
 
     endReceive = 0; //End the receive of a binary digit.
-
-    //If the angle has not been found, set the PWM rate for the servo.
-    if (!foundAngle && lockOnPhase)
-        SysCtlPWMClockSet(SYSCTL_PWMDIV_64);
 }
 
 //Obtain multiple readings of the distance to the other node.
 void getDistance(int *numTransmits, int *findDistance, int distance,
                  int minIndex, int *numReadings)
 {
-    int i;
-    int averageDistance = 0;
-
-	//If the angle has been locked onto, poll for multiple distance
-	//readings.
-    if (*findDistance == 1) {
-		//If the distance is a reasonable number, keep track of it in
-		//the distanceList array.
-        if (distance > 0 && distance < 100) {
-            distanceList[*numReadings] = distance;
-            ++*numReadings; //Keep track of the number of distance readings.
-        }
+	//If the angle has been locked onto, send multiple transmissions
+    //for the other side to find the distance.
+    if (sendDistance) {
         ++*numTransmits; //Update the number of transmits performed.
+        time = 0;
 		//numTransmits represents the amount of distance readings taken. 
-        if (*numTransmits == 20) {
-		    //Average the distance readings.
-            for (i = 0; i < *numReadings; ++i)
-                averageDistance += distanceList[i];
-            averageDistance /= *numReadings;
-            if (reportDistance) {
-                clear(); //Clear the LCD.
-                writeAngle(angleList[minIndex]); //Write the locked on angle to the LCD.
-                writeDistance(averageDistance); //Write the distance to the LCD.
-            }
-            *numTransmits = 100; //Make sure this condition is never met again.
-            *findDistance = 0; //Don't poll for any more distance readings.
+        if (*numTransmits == 100) {
+            *numTransmits = 200; //Make sure this condition is never met again.
+            sendDistance = 0; //Don't poll for any more distance readings.
             lockOnPhase = 0; //Finish the lock on phase.
             endReceive = 0; //Open the node for receiving.
             startTransmit = 0; 
             GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_1, 0); //Turn off the receiving phase LCD.
 			//Light up the lock on phase LCD.
-            GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_2, GPIO_PIN_2);
+            GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_3, GPIO_PIN_3);
             time = 0; //Ensure the time to measure a binary bit is reset.
+            PWMGenDisable(PWM0_BASE, PWM_GEN_0); //Disable the servo PWM module.
             _delay_ms(100);
         }
     }
@@ -679,21 +779,27 @@ int main(void)
     int numTransmits = 0; //Keep track of the number of transmits when reading distances.
     int distance = 0; //Distance to the other node.
     //Minimum distance during a lock on phase, used to find lock on angle.
-    int previousDistanceMin = 100000000;
+    int previousDistanceMin = 100000;
     int clockWise = 0; //Boolean used to specify the direction of the servo's rotation.
     int counterClockWise = 1; //Boolean used to specify the direction of the servo's rotation.
     int foundAngle = 0; //Boolean used to check if the angle has been found.
 	//Keep track of the index to the angle array that corresponds to the minimum distance.
     int minIndex = 0; 
-    int angleUpperLimit = 180; //Upper limit of the servo's rotation range.
-    int angleLowerLimit = 0; //Lower limit of the servo's rotation range.
-    int previousAngle = 0; //Previous angle of the servo's rotation.
-    int previousDistance = 100000;
+    uint32_t angleUpperLimit = 180; //Upper limit of the servo's rotation range.
+    uint32_t angleLowerLimit = 0; //Lower limit of the servo's rotation range.
+    uint32_t previousAngle = 0; //Previous angle of the servo's rotation.
+    int previousDistance = 10000000;
     int distanceBefore = 0;
     int findNextDistance = 0;
 	//Used with a timer to switch to a lock on phase after a predetermined amount of time.
     int phaseTime = 0;
     int numReadings = 0; //Keep track of the number of distance readings.
+    int numReceived = 0;
+    int i;
+
+    for (i = 0; i < 150; ++i) {
+        receiveDistanceList[i] = 100000;
+    }
 
 	//Use an external cystal oscillator running at 16 MHz.
     SysCtlClockSet(SYSCTL_SYSDIV_1 | SYSCTL_USE_OSC | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
@@ -714,7 +820,6 @@ int main(void)
 	//Timer used to ensure noise and dips in logic levels does not trick the timing of binary codes.
 	initTimer3A(); 
 	initTimer4A(); //Timer used to switch to lock on phase after a predetermined amount of time.
-	initTimer5A();
 
 	initI2C(); //Intialize I2C.
 	initLCD(); //Initialize the LCD.
@@ -734,9 +839,13 @@ int main(void)
 	while (!nodeEnabled) {
 	}
 
+	//rotateServo(startingAngle + 10);
+	//_delay_ms(200);
 	rotateServo(startingAngle); //Rotate the servo to the starting angle.
 
-	_delay_ms(50);
+	_delay_ms(300);
+
+	PWMPulseWidthSet(PWM0_BASE, PWM_OUT_0, 0);
 
 	previousAngle = startingAngle; //Start the sweep at the starting angle.
 
@@ -749,7 +858,7 @@ int main(void)
 		//and clear the watch dog.
         if (endReceive == 1) {
             finishReceive(foundAngle);
-            distance = endFlightTimer(foundAngle);
+            distance = endFlightTimer(foundAngle, &numReceived);
             clearWatchDog();
         }
 		//Receive binary or set up another transmit after a predetermined amount of time has
@@ -759,6 +868,9 @@ int main(void)
         }
 		//Transmit the binary code used during the lock on phase.
         if (startTransmit == 1) {
+            if (findDistance && sendDistance)
+               _delay_ms(100);
+
             transmitPhase(binaryCode, 3, foundAngle); //Transmit the binary code.
 
 			//When in the lock on phase, move the servo until the angle is locked onto.
@@ -774,6 +886,7 @@ int main(void)
 			//If the angle has been locked onto, transmit binary through ultrasound to obtain
 			//multiple distance readings.
             getDistance(&numTransmits, &findDistance, distance, minIndex, &numReadings);
+
         }
  		//Check if the node needs to switch to the lock on phase. Based upon the timing of
 		//the current receiving phase.
